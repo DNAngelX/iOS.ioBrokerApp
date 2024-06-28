@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+ <key>NSMotionUsageDescription</key>
+    <string>This app uses motion data to track physical activity for monitoring and reporting.</string>
+    <key>NSLocationWhenInUseUsageDescription</key>
+    <string>This app uses location data to provide location-based services and to track the device's position.</string>
+    <key>NSLocationAlwaysUsageDescription</key>
+    <string>This app requires access to your location even when the app is in the background to track location changes.</string>
+    <key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+    <string>This app uses your location to provide location-based services both when the app is in use and in the background.</string>
+	<key>NSAppClip</key>
+	<dict>
+		<key>NSAppClipRequestEphemeralUserNotification</key>
+		<false/>
+		<key>NSAppClipRequestLocationConfirmation</key>
+		<false/>
+	</dict>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>location</string>
+		<string>remote-notification</string>
+	</array>
+</dict>
+</plist>
