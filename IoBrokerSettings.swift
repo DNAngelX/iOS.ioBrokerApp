@@ -5,6 +5,7 @@ struct IoBrokerSettings: Identifiable, Codable, Hashable {
     var name: String
     var url: String
     var port: String
+    var websocketPort: String // Neuer Websocket-Port hinzugefügt
     var useCredentials: Bool
     var username: String
     var password: String
@@ -16,11 +17,12 @@ struct IoBrokerSettings: Identifiable, Codable, Hashable {
     var lastSensorValues: [String: String] // Store as JSON strings
     var lastUpdateTimes: [String: Date]
 
-    init(id: UUID = UUID(), name: String, url: String, port: String, useCredentials: Bool, username: String, password: String, person: String, device: String, location: String, isActive: Bool = true, onlineState: Bool = true, lastSensorValues: [String: String] = [:], lastUpdateTimes: [String: Date] = [:]) {
+    init(id: UUID = UUID(), name: String, url: String, port: String, websocketPort: String, useCredentials: Bool, username: String, password: String, person: String, device: String, location: String, isActive: Bool = true, onlineState: Bool = true, lastSensorValues: [String: String] = [:], lastUpdateTimes: [String: Date] = [:]) {
         self.id = id
         self.name = name
         self.url = url
         self.port = port
+        self.websocketPort = websocketPort // Initialisierung des Websocket-Ports
         self.useCredentials = useCredentials
         self.username = username
         self.password = password
@@ -38,6 +40,7 @@ struct IoBrokerSettings: Identifiable, Codable, Hashable {
         case name
         case url
         case port
+        case websocketPort // Neuer Coding Key für Websocket-Port
         case useCredentials
         case username
         case password
@@ -57,6 +60,7 @@ struct IoBrokerSettings: Identifiable, Codable, Hashable {
         name = try container.decode(String.self, forKey: .name)
         url = try container.decode(String.self, forKey: .url)
         port = try container.decode(String.self, forKey: .port)
+        websocketPort = try container.decode(String.self, forKey: .websocketPort) // Decodierung des Websocket-Ports
         useCredentials = try container.decode(Bool.self, forKey: .useCredentials)
         username = try container.decode(String.self, forKey: .username)
         password = try container.decode(String.self, forKey: .password)
@@ -76,6 +80,7 @@ struct IoBrokerSettings: Identifiable, Codable, Hashable {
         try container.encode(name, forKey: .name)
         try container.encode(url, forKey: .url)
         try container.encode(port, forKey: .port)
+        try container.encode(websocketPort, forKey: .websocketPort) // Encodierung des Websocket-Ports
         try container.encode(useCredentials, forKey: .useCredentials)
         try container.encode(username, forKey: .username)
         try container.encode(password, forKey: .password)

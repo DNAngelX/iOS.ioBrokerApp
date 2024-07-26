@@ -15,7 +15,7 @@ class SensorSettings {
     }
     var availableIntervals: [Int: String] = [
         0: "Aus",
-        10: "10 Sec",
+        1: "Imidiatley",
         60: "1 Minute",
         300: "5 Minuten",
         600: "10 Minuten",

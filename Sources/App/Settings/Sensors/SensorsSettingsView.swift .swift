@@ -52,7 +52,8 @@ struct SensorsSettingsView: View {
             .navigationTitle("Sensoren Einstellungen")
             .onAppear {
                 selectedInterval = SensorSettings.shared.updateInterval
-                sensorManager.sensors = SensorManager.shared.sensors
+                sensorManager.sensors = DefaultSensors.defaultSensors
+                SensorManager.shared.startMonitoringSensors()
             }
         }
     }

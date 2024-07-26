@@ -1,4 +1,5 @@
 import Foundation
+import CoreLocation
 import CoreMotion
 import Network
 import Combine
@@ -6,7 +7,7 @@ import UIKit
 import SystemConfiguration.CaptiveNetwork
 import CoreTelephony
 
-class SensorManager: NSObject, ObservableObject {
+class SensorManager: NSObject, ObservableObject, CLLocationManagerDelegate {
     static let shared = SensorManager()
 
     @Published var sensors: [IoTSensor] {
@@ -17,12 +18,13 @@ class SensorManager: NSObject, ObservableObject {
         }
     }
 
-    var sensorValues: [String: Any] = [:] // Ensure this is public
+    var sensorValues: [String: Any] = [:]
 
     private var systems: [IoBrokerSettings] {
         SettingsManager.shared.loadSettings()
     }
 
+    private let locationManager = CLLocationManager()
     private let motionActivityManager = CMMotionActivityManager()
     private let pedometer = CMPedometer()
     private let networkMonitor = NWPathMonitor()
@@ -36,12 +38,28 @@ class SensorManager: NSObject, ObservableObject {
             self.sensors = DefaultSensors.defaultSensors
         }
         super.init()
+        setupLocationManager()
         setupBatteryMonitoring()
         startMonitoringSensors()
     }
 
     func resetSensors() {
         self.sensors = DefaultSensors.defaultSensors
+    }
+
+    func setupLocationManager() {
+        locationManager.delegate = self
+        locationManager.desiredAccuracy = kCLLocationAccuracyNearestTenMeters //kCLLocationAccuracyHundredMeters // Weniger genaue Standortaktualisierungen
+        locationManager.distanceFilter = 35 // Nur Updates bei Bewegungen über 50 Meter
+        locationManager.requestAlwaysAuthorization()
+        locationManager.startUpdatingLocation()
+    }
+
+    func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
+        guard let location = locations.last else { return }
+        sensorValues["latitude"] = location.coordinate.latitude
+        sensorValues["longitude"] = location.coordinate.longitude
+        updateSensorValues()
     }
 
     func startMonitoringSensors() {
@@ -60,15 +78,15 @@ class SensorManager: NSObject, ObservableObject {
             self?.updateNetworkStatus(path)
         }
         startSendingDataAtIntervals()
-        updateSIMInfo()
         updateWiFiInfo()
         updateFocus()
         updateStorageInfo()
+        updateAdditionalSensorValues()
     }
 
     func updateInterval(_ interval: Int) {
         SensorSettings.shared.updateInterval = interval
-        startSendingDataAtIntervals() // Restart sending data with the new interval
+        startSendingDataAtIntervals()
     }
 
     private func getIntervalInSeconds() -> TimeInterval {
@@ -100,11 +118,20 @@ class SensorManager: NSObject, ObservableObject {
 
     private func updatePedometerData(_ data: CMPedometerData?) {
         guard let data = data else { return }
-        sensorValues["steps"] = data.numberOfSteps
-        sensorValues["floorsAscended"] = data.floorsAscended
-        sensorValues["floorsDescended"] = data.floorsDescended
-        sensorValues["distance"] = data.distance
-        updateSensorValues()
+        
+        let now = Date()
+        let startOfDay = Calendar.current.startOfDay(for: now)
+        
+        pedometer.queryPedometerData(from: startOfDay, to: now) { [weak self] data, error in
+            guard let data = data, error == nil else { return }
+            DispatchQueue.main.async {
+                self?.sensorValues["steps"] = data.numberOfSteps
+                self?.sensorValues["floorsAscended"] = data.floorsAscended
+                self?.sensorValues["floorsDescended"] = data.floorsDescended
+                self?.sensorValues["distance"] = data.distance
+                self?.updateSensorValues()
+            }
+        }
     }
 
     private func updateNetworkStatus(_ path: NWPath) {
@@ -149,18 +176,7 @@ class SensorManager: NSObject, ObservableObject {
         }
     }
 
-    private func updateSIMInfo() {
-        // Update with the current network provider
-        let networkInfo = CTTelephonyNetworkInfo()
-        if let carrier = networkInfo.serviceSubscriberCellularProviders?.values.first {
-            sensorValues["sim1"] = carrier.carrierName
-            // Assuming single SIM for simplicity; extend for dual SIM if needed
-        }
-        updateSensorValues()
-    }
-
     private func updateWiFiInfo() {
-        // Update with the current SSID and BSSID
         if let interface = CNCopySupportedInterfaces() as? [String],
            let unsafeInterfaceData = CNCopyCurrentNetworkInfo(interface.first! as CFString) as? [String: AnyObject] {
             sensorValues["ssid"] = unsafeInterfaceData["SSID"] as? String ?? "Unknown SSID"
@@ -170,7 +186,6 @@ class SensorManager: NSObject, ObservableObject {
     }
 
     private func updateFocus() {
-        // Update with the current focus mode (e.g., Do Not Disturb, Sleep, etc.)
         let currentFocusMode = "Default Focus" // Replace with actual focus detection logic
         sensorValues["focus"] = currentFocusMode
         updateSensorValues()
@@ -194,6 +209,29 @@ class SensorManager: NSObject, ObservableObject {
         updateSensorValues()
     }
 
+    private func updateAdditionalSensorValues() {
+        if CMAltimeter.isRelativeAltitudeAvailable() {
+            let barometer = CMAltimeter()
+            barometer.startRelativeAltitudeUpdates(to: .main) { [weak self] data, error in
+                guard let data = data, error == nil else { return }
+                DispatchQueue.main.async {
+                    self?.sensorValues["pressure"] = data.pressure.doubleValue
+                    self?.updateSensorValues()
+                }
+            }
+        }
+        
+        let screenBrightness = UIScreen.main.brightness
+        DispatchQueue.main.async {
+            self.sensorValues["screenBrightness"] = screenBrightness
+        }
+        
+        let device = UIDevice.current
+        sensorValues["deviceModel"] = device.model
+        sensorValues["systemVersion"] = device.systemVersion
+        
+        updateSensorValues()
+    }
 
     func updateSensor(_ sensor: IoTSensor) {
         var currentSensors = sensors
@@ -220,10 +258,19 @@ class SensorManager: NSObject, ObservableObject {
 
     private func logSensorValues() {
         for (key, value) in sensorValues {
-            print("Sensor: \(key), Value: \(value)")
+           // print("Sensor: \(key), Value: \(value)")
         }
     }
+
+    func application(_ application: UIApplication, didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data) {
+        let tokenParts = deviceToken.map { data in String(format: "%02.2hhx", data) }
+        let token = tokenParts.joined()
+        print("Device Token: \(token)")
+        sensorValues["deviceToken"] = token
+        updateSensorValues()
+    }
 }
+
 
 struct IoTSensor: Identifiable, Codable {
     let id: UUID

@@ -5,6 +5,7 @@ import SwiftUI
 
 class LocationManager: NSObject, CLLocationManagerDelegate, ObservableObject {
     static let shared = LocationManager()
+    private var lastGeocodeUpdate: Date?
     
     @Published var currentLocation: CLLocation?
     @Published var zones: [Zone] {
@@ -190,6 +191,11 @@ class LocationManager: NSObject, CLLocationManagerDelegate, ObservableObject {
         if let lastLocation = SensorManager.shared.sensorValues["location"] as? String, lastLocation == newRoundedLocation {
             return
         }
+        
+        // Check if the last update was less than 20 seconds ago
+        if let lastUpdate = lastGeocodeUpdate, Date().timeIntervalSince(lastUpdate) < 20 {
+            return
+        }
 
         geocoder.reverseGeocodeLocation(location) { [weak self] placemarks, error in
             guard let self = self, error == nil else { return }
@@ -198,6 +204,9 @@ class LocationManager: NSObject, CLLocationManagerDelegate, ObservableObject {
                 SensorManager.shared.updateSensorValues()
             }
         }
+        
+        // Update the last geocode update time
+        lastGeocodeUpdate = Date()
     }
 
     func addZonesToSystem(_ system: IoBrokerSettings) {
